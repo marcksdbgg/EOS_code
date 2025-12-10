@@ -55,12 +55,28 @@ async def load_model():
     try:
         import torch
         
+        # Disable CUDA graphs to avoid CUDA failure 35
+        os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+        
         # Check if CUDA is available
         if torch.cuda.is_available():
             print(f"CUDA available: {torch.cuda.get_device_name(0)}")
             asr_model = nemo_asr.models.ASRModel.from_pretrained(
                 model_name="nvidia/parakeet-tdt-0.6b-v3"
             )
+            
+            # Disable CUDA graphs in the decoding strategy
+            if hasattr(asr_model, 'decoding') and asr_model.decoding is not None:
+                if hasattr(asr_model.decoding, 'decoding'):
+                    decoding = asr_model.decoding.decoding
+                    if hasattr(decoding, 'use_cuda_graph_decoder'):
+                        decoding.use_cuda_graph_decoder = False
+                        print("Disabled CUDA graph decoder")
+                    if hasattr(decoding, 'decoding_computer'):
+                        if hasattr(decoding.decoding_computer, 'use_cuda_graphs'):
+                            decoding.decoding_computer.use_cuda_graphs = False
+                            print("Disabled CUDA graphs in decoding computer")
+            
             # Put model in eval mode for inference
             asr_model.eval()
             print("Model loaded successfully on GPU!")
@@ -102,8 +118,9 @@ def transcribe_audio(wav_path: str) -> str:
     
     try:
         import torch
-        with torch.no_grad():
-            output = asr_model.transcribe([wav_path])
+        with torch.no_grad(), torch.cuda.amp.autocast(enabled=False):
+            # Use verbose=False to suppress the progress bar
+            output = asr_model.transcribe([wav_path], verbose=False)
         
         result = ""
         if output and len(output) > 0:
@@ -115,7 +132,8 @@ def transcribe_audio(wav_path: str) -> str:
             elif hasattr(output, 'text'):
                 result = output.text
         
-        print(f"Transcription result: '{result}'")
+        if result:
+            print(f"Transcription: '{result}'")
         return result
         
     except Exception as e:
@@ -138,8 +156,8 @@ async def websocket_stt(websocket: WebSocket):
     print("WebSocket client connected")
     
     audio_buffer = bytearray()
-    # Increase threshold to ~1 second of audio for better transcription
-    partial_threshold = int(1.0 * SAMPLE_RATE * SAMPLE_WIDTH)
+    # Increase threshold to ~2 seconds of audio for better transcription
+    partial_threshold = int(2.0 * SAMPLE_RATE * SAMPLE_WIDTH)
     
     try:
         while True:
@@ -157,20 +175,21 @@ async def websocket_stt(websocket: WebSocket):
                     wav_path = pcm_to_wav_file(bytes(audio_buffer))
                     text = transcribe_audio(wav_path)
                     
-                    # Send partial result
-                    response = {"type": "partial", "text": text}
-                    print(f"Sending partial: {response}")
-                    await websocket.send_json(response)
+                    # Only send if we have text
+                    if text:
+                        response = {"type": "partial", "text": text}
+                        print(f"Sending partial: {text}")
+                        await websocket.send_json(response)
             
             elif msg_type == "flush":
                 # Final transcription
                 print(f"Flush received, buffer size: {len(audio_buffer)}")
-                if len(audio_buffer) > 0:
+                if len(audio_buffer) > SAMPLE_RATE * SAMPLE_WIDTH:  # At least 1 second
                     wav_path = pcm_to_wav_file(bytes(audio_buffer))
                     text = transcribe_audio(wav_path)
                     
-                    response = {"type": "final", "text": text}
-                    print(f"Sending final: {response}")
+                    response = {"type": "final", "text": text if text else ""}
+                    print(f"Sending final: {text}")
                     await websocket.send_json(response)
                     
                 audio_buffer.clear()

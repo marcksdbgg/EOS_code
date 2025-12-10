@@ -26,3 +26,12 @@ __pycache__/
 *.pyo
 .venv/
 venv/
+
+# Rust
+Cargo.lock
+Cargo.toml
+src-tauri/target/
+src-tauri/tauri.conf.json
+
+# Vite
+.vite
