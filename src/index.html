@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EOS AI</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="overlay-container">
+    <!-- Custom Titlebar -->
+    <header class="titlebar" data-tauri-drag-region>
+      <div class="titlebar-left">
+        <div class="status-indicator" id="statusIndicator"></div>
+        <span class="title">EOS AI</span>
+      </div>
+      <div class="titlebar-controls">
+        <button class="control-btn minimize" id="minimizeBtn" title="Minimizar">
+          <svg width="12" height="12" viewBox="0 0 12 12">
+            <rect y="5" width="12" height="2" fill="currentColor"/>
+          </svg>
+        </button>
+        <button class="control-btn close" id="closeBtn" title="Cerrar">
+          <svg width="12" height="12" viewBox="0 0 12 12">
+            <path d="M1 1L11 11M11 1L1 11" stroke="currentColor" stroke-width="2"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Chat Area -->
+    <main class="chat-container">
+      <div class="messages" id="messages">
+        <div class="message assistant">
+          <div class="message-content">
+            ¡Hola! Soy tu asistente IA. ¿En qué puedo ayudarte?
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Input Area -->
+    <footer class="input-container">
+      <div class="voice-indicator" id="voiceIndicator">
+        <div class="voice-waves">
+          <span></span><span></span><span></span>
+        </div>
+        <span class="voice-text" id="voiceText">Escuchando...</span>
+      </div>
+      
+      <div class="input-row">
+        <button class="voice-btn" id="voiceBtn" title="Entrada de voz (mantener presionado)">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" y1="19" x2="12" y2="23"/>
+            <line x1="8" y1="23" x2="16" y2="23"/>
+          </svg>
+        </button>
+        
+        <div class="input-wrapper">
+          <textarea
+            id="userInput"
+            placeholder="Escribe un mensaje..."
+            rows="1"
+            autofocus
+          ></textarea>
+        </div>
+        
+        <button class="send-btn" id="sendBtn" title="Enviar (Enter)">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="22" y1="2" x2="11" y2="13"/>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+        </button>
+      </div>
+    </footer>
+  </div>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>

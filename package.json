@@ -1,0 +1,21 @@
+{
+  "name": "eos-ai-overlay",
+  "version": "1.0.0",
+  "description": "AI Chatbot Overlay with llama.cpp and Parakeet STT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "vite": "^6"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2"
+  }
+}

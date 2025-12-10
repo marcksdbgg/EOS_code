@@ -1,0 +1,11 @@
+# STT Server Dependencies
+# Install with: pip install -r requirements.txt
+# Note: For GPU support, install PyTorch with CUDA first
+
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+websockets>=12.0
+
+# NeMo Toolkit with ASR support
+# This will also install PyTorch and other dependencies
+nemo_toolkit[asr]>=2.0.0

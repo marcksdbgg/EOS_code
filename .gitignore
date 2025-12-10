@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+target/
+
+# Build output
+dist/
+dist-tauri/
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Tauri
+src-tauri/target/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
