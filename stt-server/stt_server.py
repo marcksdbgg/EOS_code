@@ -84,6 +84,10 @@ async def websocket_stt(websocket: WebSocket):
     recognizer = KaldiRecognizer(vosk_model, SAMPLE_RATE)
     recognizer.SetWords(True)
     
+    # Accumulated text across utterances (persists during pauses)
+    accumulated_text = []
+    last_partial = ""
+    
     try:
         while True:
             data = await websocket.receive_text()
@@ -96,42 +100,59 @@ async def websocket_stt(websocket: WebSocket):
                 
                 # Feed audio to recognizer
                 if recognizer.AcceptWaveform(chunk):
-                    # Complete utterance detected
+                    # Complete utterance detected - add to accumulated
                     result = json.loads(recognizer.Result())
-                    text = result.get("text", "")
+                    text = result.get("text", "").strip()
                     if text:
-                        print(f"Transcription: '{text}'")
+                        accumulated_text.append(text)
+                        full_text = " ".join(accumulated_text)
+                        print(f"Utterance: '{text}' -> Full: '{full_text}'")
                         await websocket.send_json({
                             "type": "partial",
-                            "text": text
+                            "text": full_text
                         })
+                        last_partial = ""
                 else:
-                    # Partial result available
+                    # Partial result - show current partial + accumulated
                     partial = json.loads(recognizer.PartialResult())
-                    text = partial.get("partial", "")
-                    if text:
+                    text = partial.get("partial", "").strip()
+                    if text and text != last_partial:
+                        last_partial = text
+                        # Combine accumulated + current partial
+                        if accumulated_text:
+                            full_text = " ".join(accumulated_text) + " " + text
+                        else:
+                            full_text = text
                         await websocket.send_json({
                             "type": "partial",
-                            "text": text
+                            "text": full_text
                         })
             
             elif msg_type == "flush":
-                # Final transcription - get final result
+                # Final transcription - get remaining and combine all
                 result = json.loads(recognizer.FinalResult())
-                text = result.get("text", "")
-                print(f"Final: '{text}'")
+                text = result.get("text", "").strip()
+                if text:
+                    accumulated_text.append(text)
+                
+                full_text = " ".join(accumulated_text)
+                print(f"Final: '{full_text}'")
                 
                 await websocket.send_json({
                     "type": "final",
-                    "text": text
+                    "text": full_text
                 })
                 
-                # Reset recognizer for next utterance
+                # Reset for next session
+                accumulated_text = []
+                last_partial = ""
                 recognizer = KaldiRecognizer(vosk_model, SAMPLE_RATE)
                 recognizer.SetWords(True)
             
             elif msg_type == "reset":
                 # Reset without sending result
+                accumulated_text = []
+                last_partial = ""
                 recognizer = KaldiRecognizer(vosk_model, SAMPLE_RATE)
                 recognizer.SetWords(True)
                 print("Recognizer reset")

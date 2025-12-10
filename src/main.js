@@ -182,20 +182,26 @@ async function startVoiceCapture() {
   voiceIndicator.classList.add('active');
   voiceText.textContent = 'Escuchando...';
 
+  // Remember initial text in case we need to preserve it
+  const initialText = userInput.value;
+
   try {
     await voiceModule.startVoice(
-      // onPartial - update text as speaking
+      // onPartial - update text as speaking (only if there's content)
       (text) => {
         console.log('Partial transcription:', text);
+        // Only update if we received actual text
         if (text && text.trim()) {
           userInput.value = text;
-          voiceText.textContent = text;
+          voiceText.textContent = text.length > 50 ? text.slice(-50) + '...' : text;
           autoResizeTextarea();
         }
+        // If empty text, keep the current value (don't clear)
       },
       // onFinal - final text after stopping
       (text) => {
         console.log('Final transcription:', text);
+        // Only update if we received actual text, otherwise keep existing
         if (text && text.trim()) {
           userInput.value = text;
           autoResizeTextarea();
@@ -204,6 +210,10 @@ async function startVoiceCapture() {
     );
   } catch (e) {
     console.error('Voice start error:', e);
+    // Restore initial text on error
+    if (initialText) {
+      userInput.value = initialText;
+    }
     stopVoiceCapture();
   }
 }
