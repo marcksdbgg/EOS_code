@@ -35,3 +35,6 @@ src-tauri/tauri.conf.json
 
 # Vite
 .vite
+
+# tauri
+src-tauri/

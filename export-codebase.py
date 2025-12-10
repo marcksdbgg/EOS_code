@@ -19,7 +19,7 @@ os.chdir(PROJECT_ROOT)
 # Directories to exclude from the export
 EXCLUDED_DIRS = {'.git', '__pycache__', '.venv', '.idea', '.mypy_cache', '.vscode', '.github', 'node_modules', 
                 '.next', 'out', 'dist', 'coverage', 'README.md','package-lock.json', 'export-codebase.py', 
-                'full_codebase.md', 'external-files', 'actual.md', 'env.local', 'SYNC_REPORT.md', '.gitignore'}
+                'full_codebase.md', 'external-files', 'actual.md', 'env.local', 'SYNC_REPORT.md', '.gitignore', 'Cargo.lock', 'Cargo.toml', 'src-tauri/target/', 'src-tauri/tauri.conf.json', 'target', 'src-tauri'}
 
 # Important files to include even at the root level
 IMPORTANT_CONFIG_FILES = [
