@@ -10,6 +10,7 @@ import base64
 import tempfile
 import wave
 import os
+import json
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -52,27 +53,17 @@ async def load_model():
     
     print("Loading Parakeet-TDT-0.6b-v3 model...")
     try:
-        # Try loading model - NeMo will auto-detect GPU/CPU
         import torch
         
         # Check if CUDA is available
         if torch.cuda.is_available():
             print(f"CUDA available: {torch.cuda.get_device_name(0)}")
-            try:
-                asr_model = nemo_asr.models.ASRModel.from_pretrained(
-                    model_name="nvidia/parakeet-tdt-0.6b-v3"
-                )
-                print("Model loaded successfully on GPU!")
-            except Exception as cuda_err:
-                print(f"GPU loading failed: {cuda_err}")
-                print("Falling back to CPU...")
-                # Force CPU mode
-                asr_model = nemo_asr.models.ASRModel.from_pretrained(
-                    model_name="nvidia/parakeet-tdt-0.6b-v3",
-                    map_location="cpu"
-                )
-                asr_model = asr_model.cpu()
-                print("Model loaded successfully on CPU!")
+            asr_model = nemo_asr.models.ASRModel.from_pretrained(
+                model_name="nvidia/parakeet-tdt-0.6b-v3"
+            )
+            # Put model in eval mode for inference
+            asr_model.eval()
+            print("Model loaded successfully on GPU!")
         else:
             print("CUDA not available, using CPU...")
             asr_model = nemo_asr.models.ASRModel.from_pretrained(
@@ -80,9 +71,12 @@ async def load_model():
                 map_location="cpu"
             )
             asr_model = asr_model.cpu()
+            asr_model.eval()
             print("Model loaded successfully on CPU!")
     except Exception as e:
         print(f"ERROR loading model: {e}")
+        import traceback
+        traceback.print_exc()
         asr_model = None
 
 
@@ -103,20 +97,32 @@ def pcm_to_wav_file(pcm_bytes: bytes) -> str:
 def transcribe_audio(wav_path: str) -> str:
     """Transcribe audio file using the loaded model"""
     if asr_model is None:
-        return "[Model not loaded]"
+        print("Model not loaded!")
+        return ""
     
     try:
-        output = asr_model.transcribe([wav_path])
+        import torch
+        with torch.no_grad():
+            output = asr_model.transcribe([wav_path])
+        
+        result = ""
         if output and len(output) > 0:
-            # Handle different output formats
+            # Handle different output formats from NeMo
             if hasattr(output[0], 'text'):
-                return output[0].text
+                result = output[0].text
             elif isinstance(output[0], str):
-                return output[0]
-        return ""
+                result = output[0]
+            elif hasattr(output, 'text'):
+                result = output.text
+        
+        print(f"Transcription result: '{result}'")
+        return result
+        
     except Exception as e:
         print(f"Transcription error: {e}")
-        return f"[Error: {e}]"
+        import traceback
+        traceback.print_exc()
+        return ""
     finally:
         # Clean up temp file
         try:
@@ -129,14 +135,16 @@ def transcribe_audio(wav_path: str) -> str:
 async def websocket_stt(websocket: WebSocket):
     """WebSocket endpoint for real-time STT"""
     await websocket.accept()
+    print("WebSocket client connected")
     
     audio_buffer = bytearray()
-    partial_threshold = int(0.6 * SAMPLE_RATE * SAMPLE_WIDTH)  # ~600ms of audio
+    # Increase threshold to ~1 second of audio for better transcription
+    partial_threshold = int(1.0 * SAMPLE_RATE * SAMPLE_WIDTH)
     
     try:
         while True:
             data = await websocket.receive_text()
-            msg = __import__('json').loads(data)
+            msg = json.loads(data)
             msg_type = msg.get("type")
             
             if msg_type == "audio":
@@ -144,34 +152,40 @@ async def websocket_stt(websocket: WebSocket):
                 chunk = base64.b64decode(msg.get("data", ""))
                 audio_buffer.extend(chunk)
                 
-                # Send partial transcription every ~600ms
+                # Send partial transcription when we have enough audio
                 if len(audio_buffer) >= partial_threshold:
                     wav_path = pcm_to_wav_file(bytes(audio_buffer))
                     text = transcribe_audio(wav_path)
-                    await websocket.send_json({
-                        "type": "partial",
-                        "text": text
-                    })
+                    
+                    # Send partial result
+                    response = {"type": "partial", "text": text}
+                    print(f"Sending partial: {response}")
+                    await websocket.send_json(response)
             
             elif msg_type == "flush":
                 # Final transcription
-                if audio_buffer:
+                print(f"Flush received, buffer size: {len(audio_buffer)}")
+                if len(audio_buffer) > 0:
                     wav_path = pcm_to_wav_file(bytes(audio_buffer))
                     text = transcribe_audio(wav_path)
-                    await websocket.send_json({
-                        "type": "final",
-                        "text": text
-                    })
+                    
+                    response = {"type": "final", "text": text}
+                    print(f"Sending final: {response}")
+                    await websocket.send_json(response)
+                    
                 audio_buffer.clear()
             
             elif msg_type == "reset":
                 # Clear buffer without transcribing
                 audio_buffer.clear()
+                print("Buffer reset")
     
     except WebSocketDisconnect:
         print("Client disconnected")
     except Exception as e:
         print(f"WebSocket error: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 @app.get("/health")

@@ -1,5 +1,6 @@
 // Main application logic for EOS AI Overlay
 const { invoke } = window.__TAURI__.core;
+const { getCurrentWindow } = window.__TAURI__.window;
 
 // State
 let chatHistory = [];
@@ -16,6 +17,7 @@ const voiceText = document.getElementById('voiceText');
 const minimizeBtn = document.getElementById('minimizeBtn');
 const closeBtn = document.getElementById('closeBtn');
 const statusIndicator = document.getElementById('statusIndicator');
+const titlebar = document.querySelector('.titlebar');
 
 // Voice module (will be loaded dynamically)
 let voiceModule = null;
@@ -23,6 +25,7 @@ let voiceModule = null;
 // ============ Initialization ============
 async function init() {
   setupEventListeners();
+  setupWindowDrag();
   await loadVoiceModule();
   autoResizeTextarea();
 }
@@ -46,6 +49,23 @@ function setupEventListeners() {
   // Window controls
   minimizeBtn.addEventListener('click', () => invoke('minimize_window'));
   closeBtn.addEventListener('click', () => invoke('close_window'));
+}
+
+// Setup window drag for Tauri 2
+function setupWindowDrag() {
+  if (titlebar) {
+    titlebar.addEventListener('mousedown', async (e) => {
+      // Don't drag if clicking on buttons
+      if (e.target.closest('button')) return;
+
+      try {
+        const appWindow = getCurrentWindow();
+        await appWindow.startDragging();
+      } catch (err) {
+        console.error('Drag error:', err);
+      }
+    });
+  }
 }
 
 async function loadVoiceModule() {
@@ -167,15 +187,19 @@ async function startVoiceCapture() {
       // onPartial - update text as speaking
       (text) => {
         console.log('Partial transcription:', text);
-        userInput.value = text;
-        voiceText.textContent = text || 'Escuchando...';
-        autoResizeTextarea();
+        if (text && text.trim()) {
+          userInput.value = text;
+          voiceText.textContent = text;
+          autoResizeTextarea();
+        }
       },
       // onFinal - final text after stopping
       (text) => {
         console.log('Final transcription:', text);
-        userInput.value = text;
-        autoResizeTextarea();
+        if (text && text.trim()) {
+          userInput.value = text;
+          autoResizeTextarea();
+        }
       }
     );
   } catch (e) {
