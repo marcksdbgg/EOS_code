@@ -52,10 +52,35 @@ async def load_model():
     
     print("Loading Parakeet-TDT-0.6b-v3 model...")
     try:
-        asr_model = nemo_asr.models.ASRModel.from_pretrained(
-            model_name="nvidia/parakeet-tdt-0.6b-v3"
-        )
-        print("Model loaded successfully!")
+        # Try loading model - NeMo will auto-detect GPU/CPU
+        import torch
+        
+        # Check if CUDA is available
+        if torch.cuda.is_available():
+            print(f"CUDA available: {torch.cuda.get_device_name(0)}")
+            try:
+                asr_model = nemo_asr.models.ASRModel.from_pretrained(
+                    model_name="nvidia/parakeet-tdt-0.6b-v3"
+                )
+                print("Model loaded successfully on GPU!")
+            except Exception as cuda_err:
+                print(f"GPU loading failed: {cuda_err}")
+                print("Falling back to CPU...")
+                # Force CPU mode
+                asr_model = nemo_asr.models.ASRModel.from_pretrained(
+                    model_name="nvidia/parakeet-tdt-0.6b-v3",
+                    map_location="cpu"
+                )
+                asr_model = asr_model.cpu()
+                print("Model loaded successfully on CPU!")
+        else:
+            print("CUDA not available, using CPU...")
+            asr_model = nemo_asr.models.ASRModel.from_pretrained(
+                model_name="nvidia/parakeet-tdt-0.6b-v3",
+                map_location="cpu"
+            )
+            asr_model = asr_model.cpu()
+            print("Model loaded successfully on CPU!")
     except Exception as e:
         print(f"ERROR loading model: {e}")
         asr_model = None

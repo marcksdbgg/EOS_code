@@ -4,6 +4,7 @@ const { invoke } = window.__TAURI__.core;
 // State
 let chatHistory = [];
 let isProcessing = false;
+let isRecording = false;
 
 // DOM Elements
 const messagesContainer = document.getElementById('messages');
@@ -39,10 +40,8 @@ function setupEventListeners() {
   // Auto-resize textarea
   userInput.addEventListener('input', autoResizeTextarea);
 
-  // Voice button - push to talk
-  voiceBtn.addEventListener('mousedown', startVoiceCapture);
-  voiceBtn.addEventListener('mouseup', stopVoiceCapture);
-  voiceBtn.addEventListener('mouseleave', stopVoiceCapture);
+  // Voice button - CLICK TO TOGGLE (not push-to-talk)
+  voiceBtn.addEventListener('click', toggleVoiceCapture);
 
   // Window controls
   minimizeBtn.addEventListener('click', () => invoke('minimize_window'));
@@ -52,6 +51,7 @@ function setupEventListeners() {
 async function loadVoiceModule() {
   try {
     voiceModule = await import('./voice.js');
+    console.log('Voice module loaded successfully');
   } catch (e) {
     console.warn('Voice module not available:', e);
   }
@@ -93,7 +93,7 @@ async function sendMessage() {
     } else {
       addMessage('assistant', 'No pude generar una respuesta. ¿Está el servidor llama.cpp activo?');
     }
-    
+
     setStatus('success');
   } catch (error) {
     console.error('LLM Error:', error);
@@ -141,11 +141,22 @@ function autoResizeTextarea() {
 }
 
 // ============ Voice Functions ============
-let isRecording = false;
+// Toggle voice capture on click (not push-to-talk)
+async function toggleVoiceCapture() {
+  if (isRecording) {
+    stopVoiceCapture();
+  } else {
+    await startVoiceCapture();
+  }
+}
 
 async function startVoiceCapture() {
-  if (!voiceModule || isRecording) return;
+  if (!voiceModule) {
+    console.error('Voice module not loaded');
+    return;
+  }
 
+  console.log('Starting voice capture...');
   isRecording = true;
   voiceBtn.classList.add('recording');
   voiceIndicator.classList.add('active');
@@ -155,12 +166,14 @@ async function startVoiceCapture() {
     await voiceModule.startVoice(
       // onPartial - update text as speaking
       (text) => {
+        console.log('Partial transcription:', text);
         userInput.value = text;
         voiceText.textContent = text || 'Escuchando...';
         autoResizeTextarea();
       },
       // onFinal - final text after stopping
       (text) => {
+        console.log('Final transcription:', text);
         userInput.value = text;
         autoResizeTextarea();
       }
@@ -172,12 +185,13 @@ async function startVoiceCapture() {
 }
 
 function stopVoiceCapture() {
-  if (!voiceModule || !isRecording) return;
+  if (!voiceModule) return;
 
+  console.log('Stopping voice capture...');
   isRecording = false;
   voiceBtn.classList.remove('recording');
   voiceIndicator.classList.remove('active');
-  
+
   try {
     voiceModule.stopVoice();
   } catch (e) {
